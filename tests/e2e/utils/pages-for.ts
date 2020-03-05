@@ -3730,10 +3730,12 @@ function pagesFor(browser) {
 
       clickMoreForPostNr: function(postNr: PostNr) {
         api.topic.clickPostActionButton(`#post-${postNr} + .esPA .dw-a-more`);
+        //api.waitAndClick(`#post-${postNr} + .esPA .dw-a-more`);
       },
 
       openShareDialogForPostNr: function(postNr: PostNr) {
         api.topic.clickPostActionButton(`#post-${postNr} + .esPA .dw-a-link`);
+        //api.waitAndClick(`#post-${postNr} + .esPA .dw-a-link`);
         api.waitForVisible('.s_ShareD');
       },
 
@@ -3751,6 +3753,7 @@ function pagesFor(browser) {
 
       clickMoreVotesForPostNr: function(postNr: PostNr) {
         api.topic.clickPostActionButton(`#post-${postNr} + .esPA .dw-a-votes`);
+        //api.waitAndClick(`#post-${postNr} + .esPA .dw-a-votes`);
       },
 
       makeLikeVoteSelector: (postNr: PostNr, ps: { byMe?: true } = {}): string => {
@@ -4044,6 +4047,8 @@ function pagesFor(browser) {
       // Not needed? Just use  waitAndClick()  instead?
       clickPostActionButton: function(buttonSelector: string, opts: { clickFirst?: boolean } = {}) {   // RENAME to api.scrollAndClick?
         api.switchToEmbCommentsIframeIfNeeded();
+        api.waitAndClick(buttonSelector, opts);
+        return;
         let hasScrolled = false;
         const isInIframe = api.isInIframe();
 
