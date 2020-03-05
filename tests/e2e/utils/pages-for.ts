@@ -25,14 +25,13 @@ const PollMaxMs = 5000;
 const enum IsWhere {
   Nowhere = 0,
   Forum = 1,
+  LoginPopup = 2,
 
-  EmbFirst = 2,
-  EmbeddingPage = 2,
-  EmbCommentsIframe = 3,
-  EmbEditorIframe = 4,
-  EmbLast = 4,
-
-  OtherTab = 5,
+  EmbFirst = 3,
+  EmbeddingPage = 3,
+  EmbCommentsIframe = 4,
+  EmbEditorIframe = 5,
+  EmbLast = 5,
 };
 
 
@@ -104,6 +103,7 @@ function pagesFor(browser) {
 
   const hostsVisited = {};
   let isWhere: IsWhere = IsWhere.Nowhere;
+  let isInTabNr: number = 1;
   let isOnEmbeddedCommentsPage = false;
 
   const api = {
@@ -347,6 +347,10 @@ function pagesFor(browser) {
     },
 
 
+    numTabs: (): number => {
+      return browser.getTabIds().length;
+    },
+
     waitForMinBrowserTabs: (howMany: number) => {
       browser.waitUntil(function () {
         return browser.getTabIds().length >= howMany;
@@ -355,12 +359,13 @@ function pagesFor(browser) {
 
     waitForMaxBrowserTabs: (howMany: number) => {
       browser.waitUntil(function () {
-        return browser.getTabIds().length <= howMany;
+        // Cannot be 0, that'd mean the test made itself disappear?
+        return browser.getTabIds().length <= Math.max(1, howMany);
       });
     },
 
 
-    swithToOtherTabOrWindow: function() {
+    swithToOtherTabOrWindow: function(isWhereAfter?: IsWhere) {
       for (let i = 0; i < 3; ++i) {
         logMessage("Waiting for other window to open, to prevent weird Selenium errors...");
         browser.pause(1500);
@@ -375,7 +380,12 @@ function pagesFor(browser) {
           logMessage(`Calling browser.switchTab(id), id = ${id}...`);
           browser.switchTab(id);
           logMessage(`... done, current tab id is now: ${browser.getCurrentTabId()}.`);
-          isWhere = IsWhere.OtherTab;
+          if (isWhereAfter) {
+            isWhere = isWhereAfter;
+          }
+          else {
+            api.__updateIsWhere();
+          }
           return;
         }
       }
@@ -384,7 +394,7 @@ function pagesFor(browser) {
     },
 
 
-    switchBackToFirstTabOrWindow: function() {
+    switchBackToFirstTabOrWindow: () => {
       // If no id specified, will switch to the first tab.
       browser.pause(500);
       let ids = browser.getTabIds();
@@ -484,13 +494,13 @@ function pagesFor(browser) {
 
     switchToLoginPopupIfEmbedded: () => {
       if (IsWhere.EmbFirst <= isWhere && isWhere <= IsWhere.EmbLast ) {
-        api.swithToOtherTabOrWindow();
+        api.swithToOtherTabOrWindow(IsWhere.LoginPopup);
       }
     },
 
 
     switchBackToFirstTabIfNeeded: () => {
-      if (isWhere === IsWhere.OtherTab) {
+      if (isWhere === IsWhere.LoginPopup) {
         api.switchBackToFirstTabOrWindow();
       }
     },
@@ -2173,12 +2183,13 @@ function pagesFor(browser) {
           password = username.password;
           username = username.username;
         }
+        const numTabs = api.numTabs();
         api.loginDialog.tryLogin(username, password);
         if (opts && opts.resultInError)
           return;
-        if (isWhere === IsWhere.OtherTab) {
+        if (isWhere === IsWhere.LoginPopup) {
           // Wait for this login popup tab/window to close.
-          api.waitForMaxBrowserTabs(1);
+          api.waitForMaxBrowserTabs(numTabs - 1);
           api.switchBackToFirstTabIfNeeded();
         }
         else {
@@ -2198,15 +2209,16 @@ function pagesFor(browser) {
       // Embedded discussions do all logins in popups.
       loginWithPasswordInPopup:
           (username: string | { username: string, password: string }, password?: string) => {
-        api.swithToOtherTabOrWindow();
+        api.swithToOtherTabOrWindow(IsWhere.LoginPopup);
         api.disableRateLimits();
         if (_.isObject(username)) {
           password = username.password;
           username = username.username;
         }
+        const numTabs = api.numTabs();
         api.loginDialog.tryLogin(username, password);
         // The popup auto closes after login.
-        api.waitForMaxBrowserTabs(1);
+        api.waitForMaxBrowserTabs(numTabs - 1);
         api.switchBackToFirstTabOrWindow();
       },
 
@@ -2658,6 +2670,7 @@ function pagesFor(browser) {
       },
 
       clickResetPasswordCloseDialogSwitchTab: function() {
+        // This click opens a new tab.
         api.waitAndClick('.dw-reset-pswd');
         // The login dialog should close when we click the reset-password link. [5KWE02X]
         api.waitUntilModalGone();
@@ -3724,7 +3737,7 @@ function pagesFor(browser) {
         api.waitForVisible('.s_ShareD');
       },
 
-      openMoveDialogForPostNr: function(postNr: PostNr) {
+      openMoveDialogForPostNr: (postNr: PostNr) => {
         // This always works, when the tests are visible and I look at them.
         // But can block forever, in an invisible browser. Just repeat until works.
         utils.tryManyTimes("Open move post dialog", 3, () => {
